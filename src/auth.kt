@@ -5,6 +5,7 @@ import com.typesafe.config.ConfigFactory
 import io.ktor.application.*
 import io.ktor.auth.*
 import io.ktor.client.*
+import io.ktor.http.*
 import io.ktor.response.*
 import io.ktor.routing.*
 import io.ktor.sessions.*
@@ -66,10 +67,22 @@ fun Application.setupAuth() {
             }
         }
 
-        // Perform logout by cleaning session
+        // Perform logout by cleaning cookies and start RP-initiated logout
         get("/logout") {
+            val idToken = call.session?.idToken
+
             call.sessions.clear<UserSession>()
-            call.respondRedirect("/")
+
+            val redirectLogout = when (idToken) {
+                null -> "/"
+                else -> URLBuilder(oktaConfig.logoutUrl).run {
+                    parameters.append("post_logout_redirect_uri", "http://localhost:8080")
+                    parameters.append("id_token_hint", idToken)
+                    buildString()
+                }
+            }
+
+            call.respondRedirect(redirectLogout)
         }
     }
 }
